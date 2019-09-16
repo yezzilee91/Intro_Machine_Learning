@@ -1,0 +1,171 @@
+cancer = read.table('14.1breast-cancer-wisconsin.dataSummer2018.txt',header =F, sep=",", na.string=c("?"))
+
+#
+#1. Sample code number: id number 
+#2. Clump Thickness: 1 - 10 
+#3. Uniformity of Cell Size: 1 - 10 
+#4. Uniformity of Cell Shape: 1 - 10 
+#5. Marginal Adhesion: 1 - 10 
+#6. Single Epithelial Cell Size: 1 - 10 
+#7. Bare Nuclei: 1 - 10 
+#8. Bland Chromatin: 1 - 10 
+#9. Normal Nucleoli: 1 - 10 
+#10. Mitoses: 1 - 10 
+#11. Class: (2 for benign, 4 for malignant)
+
+colnames(cancer) <- c("ID", "Clump.Thickness", "Uniform.Cell.Size", "Uniform.Cell.Shape",
+                  "Marg.Adhesion", "Single.Epith.Cell.Size", "Bare.Nuclei", "Bland.Chromatin",
+                  "Normal.Nucleoli", "Mitoses", "Class")
+sum(is.na(cancer))
+#missing value is coded in "?"
+#8. Missing attribute values: 16
+#There are 16 instances in Groups 1 to 6 that contain a single missing 
+#(i.e., unavailable) attribute value, now denoted by "?". 
+
+cancer$Class = as.factor(cancer$Class)
+levels(cancer$Class) = c(0,1)
+summary(cancer)
+
+
+
+library(ggplot2)
+library(caret)
+library(mice)
+library(lattice)
+install.packages("mice")
+
+
+
+
+
+
+
+# Apply median imputation: model
+#removing ID and Cancer
+cancer_M = cancer[,2:11]
+cancer_M$Bare.Nuclei = as.numeric(as.character(cancer_M$Bare.Nuclei))# However, transfering this var type is dangerous because we do not know if 10 is bigger than 1
+mean(cancer_M$Bare.Nuclei, na.rm = TRUE)
+cancer_M$Bare.Nuclei[is.na(cancer_M$Bare.Nuclei)] = mean(cancer_M$Bare.Nuclei, na.rm=TRUE)
+sum(is.na(cancer))#16
+sum(is.na(cancer_M))#0
+
+
+# Mode imputation 
+
+cancer_mode = cancer[,2:11]
+Mode <- function(x) {
+  ux <- na.omit(unique(x) )
+  tab <- tabulate(match(x, ux)); ux[tab == max(tab) ]
+}
+
+Mode(cancer_mode$Bare.Nuclei)
+
+cancer_mode$Bare.Nuclei[is.na(cancer_mode$Bare.Nuclei)] = Mode(cancer_mode$Bare.Nuclei)
+sum(is.na(cancer_mode))#0
+
+
+#Regression
+#Taking id var and class variables to predict missing num
+cancer_reg = cancer[,2:11]
+miss_reg = mice(cancer_reg, method="norm.predict", m=1)
+imp = complete(miss_reg)
+sum(is.na(imp))#0
+
+#Regression with perturbation
+miss_per = mice(cancer_reg, method="norm.nob", m=1)
+imp_per = complete(miss_per)
+sum(is.na(imp_per))#0
+
+
+#mode kkn
+set.seed(1004)
+n = floor(0.7*nrow(cancer_mode))
+n
+indx_m= sample(seq_len(nrow(cancer_mode)), size = n)
+train_m= cancer_mode[indx_m,]
+test_m= cancer_mode[-indx_m,]
+
+KNN <- function(train, test, kList) {
+  bestK = 0; bestAccuracy = 0
+  for (k in kList) {
+    fit <- knn3(Class ~., data=train, k=k)
+    predictions <- predict(fit, test[0:(length(test)-1)], type="class")
+    accuracy <- round((sum(predictions == test$Class) / length(test$Class)), digits=3)
+    if (accuracy > bestAccuracy) {
+      bestK <- k
+      bestAccuracy <- accuracy
+    }
+  }
+  return (list("best_k" = bestK, "best_accuracy" = bestAccuracy))
+}
+
+kList <- seq(1,10)
+knn_mode = KNN(train_m, test_m, kList)
+knn_mode
+
+#mean kkn
+set.seed(1004)
+n = floor(0.7*nrow(cancer_M))
+n
+indx_M= sample(seq_len(nrow(cancer_M)), size = n)
+train_M= cancer_M[indx_M,]
+test_M= cancer_M[-indx_M,]
+kList <- seq(1,10)
+knn_mean = KNN(train_M, test_M, kList)
+knn_mean
+
+
+#reg kkn
+set.seed(1004)
+n = floor(0.7*nrow(imp))
+n
+indx_r= sample(seq_len(nrow(imp)), size = n)
+train_r= imp[indx_r,]
+test_r= imp[-indx_r,]
+kList <- seq(1,10)
+knn_reg = KNN(train_r, test_r, kList)
+knn_reg
+
+#reg_perturbation
+set.seed(1004)
+n = floor(0.7*nrow(imp_per))
+n
+indx_per= sample(seq_len(nrow(imp_per)), size = n)
+train_per= imp_per[indx_r,]
+test_per= imp_per[-indx_r,]
+kList <- seq(1,10)
+knn_per = KNN(train_per, test_per, kList)
+knn_per
+
+sum(is.na(cancer))
+no_cancer = na.omit(cancer)
+#kkn missing values
+set.seed(1004)
+n = floor(0.8*nrow(no_cancer))
+n
+indx_no= sample(seq_len(nrow(no_cancer)), size = n)
+train_no= no_cancer[indx_r,]
+test_no= no_cancer[-indx_r,]
+kList <- seq(1,10)
+knn_no = KNN(train_no, test_no, kList)
+knn_no
+
+str(cancer.factor)
+cancer.factor = as.factor(unlist(cancer_reg))
+#Binary variable
+cancer_reg = cancer[,2:11]
+bin_reg = mice(cancer_reg, method="logreg", m=1)
+binary = complete(bin_reg)
+
+set.seed(1004)
+n = floor(0.7*nrow(no_cancer))
+n
+indx_no= sample(seq_len(nrow(no_cancer)), size = n)
+train_no= no_cancer[indx_r,]
+test_no= no_cancer[-indx_r,]
+kList <- seq(1,10)
+knn_no = KNN(train_no, test_no, kList)
+knn_no
+
+
+
