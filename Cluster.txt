@@ -1,4 +1,4 @@
-#Question 4.2
+
 library(ggplot2)
 #pulling off the dataset 
 setwd('C:/Users/Lee_Y/Desktop/OMSA/ISYE6501/HW2')
@@ -65,7 +65,7 @@ plot(1:k.max, wss,
 abline(v = 3, lty =2)
 
 
-#Question 5.1
+#Outlier detection
 
 #pulling off the dataset 
 setwd('C:/Users/Lee_Y/Desktop/OMSA/ISYE6501/HW2')
@@ -129,7 +129,7 @@ gtest2_1
 gtest2_2 =grubbs.test(test2$Crime, type = 10, opposite = TRUE, two.sided = FALSE) 
 
 
-#Question 6.2
+#CUSUM approach
 
 temp = read.table('6.2tempsSummer2018.txt', header=T)
 plot(temp$X1996)
