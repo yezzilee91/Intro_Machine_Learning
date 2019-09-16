@@ -1,0 +1,222 @@
+#Principal Components Anlaysis
+
+crime = read.table('9.1uscrimeSummer2018.txt', header=T)
+#Running PCA
+
+
+#Make regression models based on the PCAs to predict crime
+
+#PCA generally does not work well with binary data
+#we wont cover advanced methods to handle this in this course
+#The PCA odel seems much worse than the non-PCA model
+#get eigenvalues/eigenvectors
+
+# (XTX)*v = lambda*v
+# [XTX-lamda]*v = 0
+# det[XTX-lamda*I] = 0
+
+crime_mx<- as.matrix(crime)
+XTX<-t(crime_mx)%*%crime_mx
+eig<- eigen(XTX)
+eig
+
+eig$vectors
+
+
+
+
+for (i in 1:ncol(crime)) {
+  print(det(XTX-eig$values[i]*diag(ncol(crime))))
+}
+
+for (i in 1:ncol(crime)) {
+  print((XTX-eig$values[i]*diag(ncol(crime)))%*%eig$vectors[,i])
+}
+
+#Run PCA on matrix of scaled predictors
+pca = prcomp(crime[,1:15], scale=T)
+summary(pca) #from here, we are going to choose first 10 PCA
+#10 PCA explain 97% of the variance in the data
+
+
+library( caret )
+library( factoextra )
+
+install.packages("caret")
+install.packages("factoextra")
+#finding best number of predictors
+fviz_eig( pca )
+
+pca$x
+plot(pca$x)
+
+
+#Make regression models based on the PCAs to predict crime
+linmod = lm(crime[,16]~.,data=as.data.frame(pca$x[,1:6]))
+summary(linmod)
+plot(linmod)
+
+#cross validation
+install.packages("DAAG")
+
+install.packages("lattice")
+library(lattice)
+library(DAAG)
+pca_data = data.frame(pca$x[, 1:6])
+pca_data$Crime = crime$Crime 
+
+model_cv= cv.lm(Crime ~ ., data=pca_data, m=5, seed=30)
+summary(model_cv)
+model_cv
+
+mean_crime = mean(crime$Crime)
+sq_tot=(crime$Crime-mean_crime)^2
+SST=sum(sq_tot)
+MSE = attr(model_cv,"ms")
+SSR=MSE*47
+cv_r2_ = 1-(SSR/SST)
+cv_r2_
+
+cv_r_aj = 1-(((1-cv_r2_)*(47-1))/(47-6-1))
+cv_r_aj
+R2adj = 1-(1-R2)*(nrow(crime)-1)/(nrow(crime)-6-1)
+#Specify your new model in terms of the orginal variables( not the principal components)
+#and compare its quality to that of your solution to Question 8.2
+#coe*pca + b=coef*x
+#scaled * (x-mean)/sd =unscaled*x
+#coe*pca + b=scaled * (x-mean)/sd =unscaled*x +a0
+#translate coefficient first
+x= linmod$coefficients[2:length(linmod$coefficients)]
+x #PCA coefficent from the model 2-6
+y= t(pca$rotation[,1:(length(linmod$coefficients)-1)])
+y #PCA columns from rotation matrixs length-1 to remove intercept
+coef = x%*%y
+coef
+
+#unscale coefficients and intercept
+
+intercept = linmod$coefficients[1] - sum(coef*sapply(crime[,1:15],mean)/sapply(crime[,1:15],sd))
+intercept
+coef_unsc = coef/sapply(crime[,1:15],sd)
+coef_unsc
+
+#compare estimates and actuals
+estimates= as.matrix(crime[,1:15])%*% t(coef_unsc) + intercept 
+t(estimates) #estiamte from pca model using unscale version of the equation 
+
+
+newdata= data.frame(M=14,So=0,Ed=10,Po1=12, Po2=15.5, LF=0.640, M.F=94.0, Pop=150, NW=1.1, U1=0.120, U2=3.6,
+                    Wealth=3200, Ineq=20.1, Prob=0.04, Time=39.0)
+predict =sum(as.matrix(newdata)%*%t(coef_unsc)+intercept)
+predict
+#compute R^2 and R^2_adj from calculating SSE, SST
+
+SSE= sum((estimates-crime[,16])^2)
+SStot = sum((crime[,16] - mean(crime[,16]))^2)
+R2= 1-SSE/SStot
+R2
+R2adj = 1-(1-R2)*(nrow(crime)-1)/(nrow(crime)-6-1)
+R2adj
+
+
+######################10.1
+install.packages("tree")
+library(tree)
+
+
+
+set.seed(1)
+
+
+#fit a regression tree dunction to the crime data
+crime_tree = tree(Crime~., data=crime)
+summary(crime_tree)
+crime_tree$frame
+plot(crime_tree)
+text(crime_tree)
+
+
+
+#Cross validation
+#determine if pruning the tree will improve performance through cv
+#by looking at the deviance of trees with different number of terminal nodes
+#Deviance is a qulaity-of-fit statistic
+cv.data =cv.tree(crime_tree)
+cv.data
+plot(cv.data$size, cv.data$dev, type="b", xlab="Tree Size", ylab ="MSE")
+cv.data$dev
+
+#consider pruning tree
+k=5
+prune.data = prune.tree(tree.data, best=k)
+plot(prune.data )
+text(prune.data)
+
+#calculate R^2 after prune node=5
+yhat_p= predict(prune.data)
+SSres_p=sum((yhat_p-crime$Crime)^2)
+SStot_p= sum((crime$Crime-mean(crime$Crime))^2)
+R_2_p = 1-SSres_p/SStot_p
+R_2_p
+
+#consider pruning tree
+k=4
+prune.data = prune.tree(tree.data, best=k)
+plot(prune.data )
+text(prune.data)
+
+#calculate R^2 after prune node=4
+yhat_p= predict(prune.data)
+SSres_p=sum((yhat_p-crime$Crime)^2)
+SStot_p= sum((crime$Crime-mean(crime$Crime))^2)
+R_2_p = 1-SSres_p/SStot_p
+R_2_p
+
+#consider pruning tree
+k=3
+prune.data = prune.tree(tree.data, best=k)
+plot(prune.data )
+
+text(prune.data)
+
+
+#consider pruning tree
+k=2
+prune.data = prune.tree(tree.data, best=k)
+plot(prune.data )
+text(prune.data)
+
+
+#calculate R^2 before prune
+yhat= predict(crime_tree)
+SSres=sum((yhat-crime$Crime)^2)
+SStot= sum((crime$Crime-mean(crime$Crime))^2)
+R_2 = 1-SSres/SStot
+R_2
+
+#calculate R^2 after prune
+yhat_p= predict(prune.data)
+SSres_p=sum((yhat-crime$Crime)^2)
+SStot_p= sum((crime$Crime-mean(crime$Crime))^2)
+R_2_p = 1-SSres/SStot
+R_2_p
+
+#Random Forest
+#install.packages("randomForest")
+library(randomForest)
+
+#grow the random tree and set the number of rpedictors that 
+#we want to consider at each split of the tree (numpred)
+
+
+crime_forest<-randomForest(Crime~., data=crime, importance=TRUE)
+crime_forest
+plot(crime_forest)
+
+#note we can't see a real model, because there are many diff trees
+#but we can see which variables are most important in the branching overall
+
+importance(crime_forest)
+
+#plot of these important measures
+varImpPlot(crime_forest)
