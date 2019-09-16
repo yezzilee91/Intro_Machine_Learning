@@ -1,0 +1,28 @@
+crime = read.table('11.1uscrimeSummer2018.txt', header=T)
+head(crime)
+
+#scale the data first, But do no scale the 2nd column since it is binary and 
+#do not need to scale the crime colume
+
+crime1 = as.data.frame(crime[,-2]) 
+crime2 = as.data.frame(scale(crime1[,-15]))
+
+crime2$So = crime[,2]
+crime2$Crime = crime[,16]
+head(crime2)
+
+
+
+#Backwards stepwise regression
+model_1=lm(Crime~., data=crime2)
+step(model_1, direction = "backward")
+
+#Forwards stepwise regression
+model_1 <- lm(Crime~1, data=crime2)
+step(model_1, scope= formula(lm(Crime~., data=crime2)), direction = "forward")
+
+#Both stepwise regression
+model_1 = lm(Crime~., data=crim2e)
+step(model_1, scope = list(lower= formula(lm(Crime~1, data=crime2)),
+                           upper = formula(lm(Crime~., data=crime2))),
+                          direction = "both")
